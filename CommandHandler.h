@@ -21,7 +21,9 @@ string handleClear(Database &redis, vector<string> &tokens);
 
 void initializeCommands();
 
+vector<string> parseRESP(string input);
+
 string executeCommand(Database &redis,
-                      vector<string> &tokens);
+                      string input);
 
 #endif

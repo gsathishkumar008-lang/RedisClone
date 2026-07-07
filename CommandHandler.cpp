@@ -8,8 +8,8 @@ using namespace std;
 
 unordered_map<
     string,
-    function<string(Database &, vector<string> &)>
-> commands;
+    function<string(Database &, vector<string> &)>>
+    commands;
 
 string handleSet(Database &redis,
                  vector<string> &tokens)
@@ -116,9 +116,51 @@ void initializeCommands()
     commands["CLEAR"] = handleClear;
 }
 
-string executeCommand(Database & redis,
-                                 vector<string> &tokens)
+/*
+Converts a RESP-formatted command into a vector of tokens.
+
+Example:
+
+Input:
+*3\r\n
+$3\r\nSET\r\n
+$4\r\nname\r\n
+$7\r\nSathish\r\n
+
+Output:
+["SET", "name", "Sathish"]
+*/
+
+vector<string> parseRESP(string input)
 {
+    vector<string> tokens;
+
+    stringstream ss(input);
+    string line;
+
+    getline(ss, line);
+
+    // Give me the string starting from index 1.
+    int numberOfTokens = stoi(line.substr(1));
+
+    for (int i = 0; i < numberOfTokens; i++)
+    {
+        getline(ss, line); // reads $3,$4,..
+        getline(ss, line); // reads SET, name,,,,
+        tokens.push_back(line);
+    }
+    return tokens;
+}
+
+string executeCommand(Database &redis,
+                      string input)
+{
+    vector<string> tokens = parseRESP(input);
+    // tokeninzation
+    if (tokens.empty())
+    {
+        return "";
+    }
     if (commands.find(tokens[0]) != commands.end())
     {
         return commands[tokens[0]](redis, tokens);

@@ -108,17 +108,7 @@ int main()
 
             string input(buffer);
 
-            stringstream ss(input);
-
-            vector<string> tokens;
-            string word;
-
-            while (ss >> word)
-            {
-                tokens.push_back(word);
-            }
-
-            string response = executeCommand(redis, tokens);
+                  string response = executeCommand(redis,input);
 
             send(clientSocket,
                  response.c_str(),

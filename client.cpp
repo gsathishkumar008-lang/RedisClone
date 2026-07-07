@@ -1,8 +1,54 @@
+#include <string>
+#include <sstream>
+#include <vector>
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
 using namespace std;
+
+/*
+Converts a plain-text Redis command into RESP format.
+string convertToRESP(string input)
+Example:
+
+Input:
+SET name Sathish
+
+Output:
+*3\r\n
+$3\r\nSET\r\n
+$4\r\nname\r\n
+$7\r\nSathish\r\n
+
+The generated RESP string is sent to the Redis server.
+*/
+
+string convertToRESP(string input)
+{
+    stringstream ss(input);
+
+    vector<string> tokens;
+    string word;
+
+    while (ss >> word)
+    {
+        tokens.push_back(word);
+    }
+
+    string resp;
+
+    // Convert the number of tokens to a string.
+    // Example: 3 -> "3", so the result becomes "*3\r\n"
+    resp += "*" + to_string(tokens.size()) + "\r\n";
+
+    for (const string &token : tokens)
+    {
+        resp += "$" + to_string(token.size()) + "\r\n";
+        resp += token + "\r\n";
+    }
+    return resp;
+}
 
 int main()
 {
@@ -57,10 +103,11 @@ int main()
 
         if (message == "EXIT")
             break;
-
+        
+        string resp = convertToRESP(message);   
         send(clientSocket,
-             message.c_str(),
-             message.length(),
+             resp.c_str(),
+             resp.length(),
              0);
 
         char buffer[1024];
