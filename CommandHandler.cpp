@@ -153,7 +153,7 @@ vector<string> parseRESP(string input)
 }
 
 string executeCommand(Database &redis,
-                      string input)
+                      string input) 
 {
     vector<string> tokens = parseRESP(input);
     // tokeninzation
