@@ -19,11 +19,18 @@ string handleKeys(Database &redis, vector<string> &tokens);
 
 string handleClear(Database &redis, vector<string> &tokens);
 
+string handlePing(Database &redis, vector<string> &tokens);
+
+string handleExpire(Database &redis, vector<string> &tokens);
+
+string handlePersist(Database &redis, vector<string> &tokens);
+
+string handleTTL(Database &redis, vector<string> &tokens);
+
 void initializeCommands();
 
 vector<string> parseRESP(string input);
 
-string executeCommand(Database &redis,
-                      string input);
+string executeCommand(Database &redis, string input);
 
 #endif

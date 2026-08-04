@@ -11,8 +11,7 @@ unordered_map<
     function<string(Database &, vector<string> &)>>
     commands;
 
-string handleSet(Database &redis,
-                 vector<string> &tokens)
+string handleSet(Database &redis, vector<string> &tokens)
 {
     if (tokens.size() != 3)
     {
@@ -23,8 +22,7 @@ string handleSet(Database &redis,
     return "OK";
 }
 
-string handleGet(Database &redis,
-                 vector<string> &tokens)
+string handleGet(Database &redis, vector<string> &tokens)
 {
     if (tokens.size() != 2)
     {
@@ -41,8 +39,7 @@ string handleGet(Database &redis,
     return value;
 }
 
-string handleDel(Database &redis,
-                 vector<string> &tokens)
+string handleDel(Database &redis, vector<string> &tokens)
 {
     if (tokens.size() != 2)
     {
@@ -57,8 +54,7 @@ string handleDel(Database &redis,
     return "Key not found";
 }
 
-string handleExists(Database &redis,
-                    vector<string> &tokens)
+string handleExists(Database &redis, vector<string> &tokens)
 {
     if (tokens.size() != 2)
     {
@@ -73,8 +69,7 @@ string handleExists(Database &redis,
     return "NO";
 }
 
-string handleKeys(Database &redis,
-                  vector<string> &tokens)
+string handleKeys(Database &redis, vector<string> &tokens)
 {
     if (tokens.size() != 1)
     {
@@ -93,8 +88,7 @@ string handleKeys(Database &redis,
     return result;
 }
 
-string handleClear(Database &redis,
-                   vector<string> &tokens)
+string handleClear(Database &redis,  vector<string> &tokens)
 {
     if (tokens.size() != 1)
     {
@@ -106,6 +100,59 @@ string handleClear(Database &redis,
     return "Database cleared";
 }
 
+string handleExpire(Database &redis, vector<string> &tokens)
+{
+    if (tokens.size() != 3)
+    {
+        return "Usage : EXPIRE <key> <seconds>";
+    }
+
+    int seconds = stoi(tokens[2]);
+
+    if (redis.expire(tokens[1], seconds))
+    {
+        return "1";
+    }
+
+    return "0";
+}
+
+string handlePersist(Database &redis, vector<string> &tokens)
+{
+    if (tokens.size() != 2)
+    {
+        return "Usage : PERSIST <key>";
+    }
+
+    if (redis.persist(tokens[1]))
+    {
+        return "1";
+    }
+
+    return "0";
+}
+
+string handleTTL(Database &redis,
+                 vector<string> &tokens)
+{
+    if (tokens.size() != 2)
+    {
+        return "Usage : TTL <key>";
+    }
+
+    return to_string(redis.ttl(tokens[1]));
+}
+
+string handlePing(Database &redis, vector<string> &tokens)
+{
+    if (tokens.size() != 1)
+    {
+        return "-ERR wrong number of arguments for 'PING' command\r\n";
+    }
+
+    return "+PONG\r\n";
+}
+
 void initializeCommands()
 {
     commands["SET"] = handleSet;
@@ -114,6 +161,11 @@ void initializeCommands()
     commands["EXISTS"] = handleExists;
     commands["KEYS"] = handleKeys;
     commands["CLEAR"] = handleClear;
+    commands["PING"] = handlePing;
+    commands["EXPIRE"] = handleExpire;
+    commands["PERSIST"] = handlePersist;
+    commands["TTL"] = handleTTL;
+
 }
 
 /*
@@ -139,21 +191,28 @@ vector<string> parseRESP(string input)
     string line;
 
     getline(ss, line);
+    if (!line.empty() && line.back() == '\r')
+        line.pop_back();
 
-    // Give me the string starting from index 1.
     int numberOfTokens = stoi(line.substr(1));
 
     for (int i = 0; i < numberOfTokens; i++)
     {
-        getline(ss, line); // reads $3,$4,..
-        getline(ss, line); // reads SET, name,,,,
+        getline(ss, line); // reads $3, $4, ...
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+
+        getline(ss, line); // reads SET, name, ...
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+
         tokens.push_back(line);
     }
+
     return tokens;
 }
 
-string executeCommand(Database &redis,
-                      string input) 
+string executeCommand(Database &redis, string input)
 {
     vector<string> tokens = parseRESP(input);
     // tokeninzation
@@ -161,6 +220,10 @@ string executeCommand(Database &redis,
     {
         return "";
     }
+
+    cout << "Command = [" << tokens[0] << "]" << endl;
+    cout << "Length = " << tokens[0].size() << endl;
+
     if (commands.find(tokens[0]) != commands.end())
     {
         return commands[tokens[0]](redis, tokens);

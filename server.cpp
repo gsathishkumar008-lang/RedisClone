@@ -1,8 +1,11 @@
-#include <iostream>
-#include "Database.h"
-#include "CommandHandler.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
+
+#include <iostream>
+#include <thread>
+#include <chrono>
+#include "Database.h"
+#include "CommandHandler.h"
 
 using namespace std;
 
@@ -72,6 +75,18 @@ int main()
     }
 
     cout << "Waiting for client...\n";
+
+    // -------------------------
+    // Active Expiration Thread
+    // -------------------------
+    std::thread expirationThread([&redis]() {
+        while (true)
+        {
+            redis.checkExpiredKeys();
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    });
+    expirationThread.detach();
 
     // -------------------------
     // Accept Client
