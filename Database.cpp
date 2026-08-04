@@ -11,18 +11,41 @@ Database::~Database()
     saveToFile();
 }
 
+void Database::expireKeysUnlocked()
+{
+    time_t currentTime = time(nullptr);
+    while (!expiryQueue.empty())
+    {
+        ExpiryNode topNode = expiryQueue.top();
+        if (topNode.expiretime > currentTime)
+        {
+            break;
+        }
+        expiryQueue.pop();
+        if (expiryMap[topNode.key] != topNode.expiretime)
+        {
+            continue;
+        }
+        db.erase(topNode.key);
+        expiryMap.erase(topNode.key);
+    }
+}
+
 void Database::setVal(string key, string value)
 {
-    checkExpiredKeys();
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
     db[key] = value;
 }
 
 string Database::get(string key)
 {
     checkExpiredKeys();
-    if (db.find(key) != db.end())
+    std::shared_lock lock(mutex_);
+    auto it = db.find(key);
+    if (it != db.end())
     {
-        return db[key];
+        return it->second;
     }
 
     return "";
@@ -31,12 +54,14 @@ string Database::get(string key)
 bool Database::exists(string key)
 {
     checkExpiredKeys();
+    std::shared_lock lock(mutex_);
     return db.find(key) != db.end();
 }
 
 bool Database::deleteKey(string key)
 {
-    checkExpiredKeys();
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
     auto it = db.find(key);
 
     if (it == db.end())
@@ -49,13 +74,16 @@ bool Database::deleteKey(string key)
 
 void Database::clearDatabase()
 {
+    std::unique_lock lock(mutex_);
     db.clear();
     expiryMap.clear();
+    expiryQueue = priority_queue<ExpiryNode, vector<ExpiryNode>, Compare>();
 }
 
 vector<string> Database::keys()
 {
     checkExpiredKeys();
+    std::shared_lock lock(mutex_);
     vector<string> result;
 
     for (auto &entry : db)

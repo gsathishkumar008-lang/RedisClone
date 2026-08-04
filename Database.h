@@ -2,6 +2,7 @@
 #define DATABASE_H
 
 #include <bits/stdc++.h>
+#include <shared_mutex>
 using namespace std;
 
 struct ExpiryNode{
@@ -20,6 +21,9 @@ private:
     unordered_map<string, string> db;
     unordered_map<string,time_t> expiryMap;
     priority_queue<ExpiryNode, vector<ExpiryNode>, Compare> expiryQueue;
+    mutable std::shared_mutex mutex_;
+
+    void expireKeysUnlocked();
 
 public:
     Database();
