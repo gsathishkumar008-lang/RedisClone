@@ -1,4 +1,5 @@
 #include "CommandHandler.h"
+#include "AOF.h"
 
 #include <unordered_map>
 #include <functional>
@@ -165,6 +166,8 @@ void initializeCommands()
     commands["EXPIRE"] = handleExpire;
     commands["PERSIST"] = handlePersist;
     commands["TTL"] = handleTTL;
+    commands["LPUSH"] = handleLPush;
+    commands["RPOP"] = handleRPop;
 
 }
 
@@ -224,9 +227,68 @@ string executeCommand(Database &redis, string input)
     cout << "Command = [" << tokens[0] << "]" << endl;
     cout << "Length = " << tokens[0].size() << endl;
 
+    string response;
     if (commands.find(tokens[0]) != commands.end())
     {
-        return commands[tokens[0]](redis, tokens);
+        response = commands[tokens[0]](redis, tokens);
     }
-    return "Unknown command";
+    else
+    {
+        response = "Unknown command";
+    }
+
+    // Persist mutating commands to AOF after success
+    if (!response.empty())
+    {
+        if (tokens[0] == "SET" && response == "OK")
+        {
+            AppendOnlyFile::instance().append(input);
+        }
+        else if (tokens[0] == "DEL" && response == "Deleted successfully")
+        {
+            AppendOnlyFile::instance().append(input);
+        }
+    }
+
+    return response;
+}
+
+string handleLPush(Database &redis, vector<string> &tokens)
+{
+    if (tokens.size() != 3)
+    {
+        return "Usage : LPUSH <key> <value>";
+    }
+
+    int len = redis.lpush(tokens[1], tokens[2]);
+    if (len == -1)
+        return "-ERR wrong type of value for LPUSH";
+
+    // AOF: append on successful mutation
+    // Build RESP for the LPUSH command and append
+    string resp = "*3\r\n$5\r\nLPUSH\r\n$" + to_string(tokens[1].size()) + "\r\n" + tokens[1] + "\r\n$" + to_string(tokens[2].size()) + "\r\n" + tokens[2] + "\r\n";
+    AppendOnlyFile::instance().append(resp);
+
+    return to_string(len);
+}
+
+string handleRPop(Database &redis, vector<string> &tokens)
+{
+    if (tokens.size() != 2)
+    {
+        return "Usage : RPOP <key>";
+    }
+
+    string out;
+    int res = redis.rpop(tokens[1], out);
+    if (res == -1)
+        return "-ERR wrong type of value for RPOP";
+    if (res == 0)
+        return "(nil)";
+
+    // AOF: append DEL if list became empty (handled inside rpop) — but we already mutate state so append RPOP for auditing
+    string resp = "*2\r\n$4\r\nRPOP\r\n$" + to_string(tokens[1].size()) + "\r\n" + tokens[1] + "\r\n";
+    AppendOnlyFile::instance().append(resp);
+
+    return out;
 }

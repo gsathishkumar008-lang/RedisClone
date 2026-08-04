@@ -27,6 +27,10 @@ string handlePersist(Database &redis, vector<string> &tokens);
 
 string handleTTL(Database &redis, vector<string> &tokens);
 
+string handleLPush(Database &redis, vector<string> &tokens);
+
+string handleRPop(Database &redis, vector<string> &tokens);
+
 void initializeCommands();
 
 vector<string> parseRESP(string input);

@@ -45,7 +45,9 @@ string Database::get(string key)
     auto it = db.find(key);
     if (it != db.end())
     {
-        return it->second;
+        if (std::holds_alternative<std::string>(it->second))
+            return std::get<std::string>(it->second);
+        return ""; // wrong type for GET
     }
 
     return "";
@@ -70,6 +72,51 @@ bool Database::deleteKey(string key)
     db.erase(it);
     expiryMap.erase(key);
     return true;
+}
+
+int Database::lpush(string key, string value)
+{
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+
+    auto it = db.find(key);
+    if (it == db.end())
+    {
+        db[key] = std::vector<std::string>{value};
+        return 1;
+    }
+
+    if (!std::holds_alternative<std::vector<std::string>>(it->second))
+    {
+        return -1; // wrong type
+    }
+
+    auto &vec = std::get<std::vector<std::string>>(it->second);
+    vec.insert(vec.begin(), value);
+    return (int)vec.size();
+}
+
+int Database::rpop(string key, string &out)
+{
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+
+    auto it = db.find(key);
+    if (it == db.end())
+        return 0; // missing
+
+    if (!std::holds_alternative<std::vector<std::string>>(it->second))
+        return -1; // wrong type
+
+    auto &vec = std::get<std::vector<std::string>>(it->second);
+    if (vec.empty())
+        return 0;
+
+    out = vec.back();
+    vec.pop_back();
+    if (vec.empty())
+        db.erase(it);
+    return 1;
 }
 
 void Database::clearDatabase()
@@ -183,8 +230,16 @@ void Database::saveToFile()
 
     for (auto &entry : db)  
     {
-        outputFile << entry.first << " "
-                   << entry.second << endl;
+        outputFile << entry.first << " ";
+        if (std::holds_alternative<std::string>(entry.second))
+        {
+            outputFile << std::get<std::string>(entry.second) << endl;
+        }
+        else
+        {
+            // Skip saving list-typed values to simple file storage for now
+            outputFile << "" << endl;
+        }
     }
 
     outputFile.close();

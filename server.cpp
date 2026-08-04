@@ -6,6 +6,7 @@
 #include "Database.h"
 #include "CommandHandler.h"
 #include "IOCPServer.h"
+#include "AOF.h"
 
 using namespace std;
 
@@ -28,6 +29,25 @@ int main()
         return 1;
     }
 
+    // Recovery: read and replay commands from appendonly.aof (if present)
+    {
+        std::vector<std::string> commands;
+        if (AppendOnlyFile::instance().readAllCommands(commands))
+        {
+            for (auto &cmd : commands)
+            {
+                // executeCommand will not append because AOF is not open yet
+                executeCommand(redis, cmd);
+            }
+        }
+    }
+
+    // Open AOF for appending commands
+    if (!AppendOnlyFile::instance().open("appendonly.aof"))
+    {
+        cout << "Warning: could not open appendonly.aof for writing\n";
+    }
+
     std::thread expirationThread([&redis]() {
         while (true)
         {
@@ -39,6 +59,9 @@ int main()
 
     server.run(redis);
     server.shutdown();
+
+    // Close AOF
+    AppendOnlyFile::instance().close();
 
     WSACleanup();
 

@@ -3,6 +3,8 @@
 
 #include <bits/stdc++.h>
 #include <shared_mutex>
+#include <variant>
+#include <vector>
 using namespace std;
 
 struct ExpiryNode{
@@ -15,10 +17,12 @@ struct Compare{
     }
 };
 
+using DatabaseValue = std::variant<std::string, std::vector<std::string>>;
+
 class Database
 {
 private:
-    unordered_map<string, string> db;
+    unordered_map<string, DatabaseValue> db;
     unordered_map<string,time_t> expiryMap;
     priority_queue<ExpiryNode, vector<ExpiryNode>, Compare> expiryQueue;
     mutable std::shared_mutex mutex_;
@@ -43,5 +47,8 @@ public:
 
     void loadFromFile();
     void saveToFile();
+    // List operations
+    int lpush(string key, string value); // returns new length or -1 on wrong type
+    int rpop(string key, string &out);   // returns 1 on success (out set), 0 if missing, -1 on wrong type
 };
 #endif

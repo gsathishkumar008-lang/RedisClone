@@ -1,0 +1,6 @@
+Clients: 100 Ops/client: 500
+Total ops attempted: 50000
+Success responses: 50000
+Errors: 0
+Duration(s): 15.1229
+Throughput (ops/s): 3306.25

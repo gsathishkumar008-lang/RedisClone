@@ -1,0 +1,4 @@
+Connected to server
+redis> OK
+redis> value
+redis> 
