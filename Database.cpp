@@ -1,246 +1,123 @@
 #include "Database.h"
-#include <fstream>
 
-Database::Database()
-{
-    loadFromFile();
-}
-
-Database::~Database()
-{
-    saveToFile();
-}
-
-void Database::expireKeysUnlocked()
-{
-    time_t currentTime = time(nullptr);
-    while (!expiryQueue.empty())
-    {
-        ExpiryNode topNode = expiryQueue.top();
-        if (topNode.expiretime > currentTime)
-        {
-            break;
-        }
+void Database::expireKeysUnlocked() {
+    const std::time_t now = std::time(nullptr);
+    while (!expiryQueue.empty() && expiryQueue.top().expiretime <= now) {
+        const ExpiryNode node = expiryQueue.top();
         expiryQueue.pop();
-        if (expiryMap[topNode.key] != topNode.expiretime)
-        {
-            continue;
+        const auto expiry = expiryMap.find(node.key);
+        if (expiry != expiryMap.end() && expiry->second == node.expiretime) {
+            db.erase(node.key);
+            expiryMap.erase(expiry);
         }
-        db.erase(topNode.key);
-        expiryMap.erase(topNode.key);
     }
 }
 
-void Database::setVal(string key, string value)
-{
+void Database::setVal(const std::string& key, const std::string& value) {
     std::unique_lock lock(mutex_);
     expireKeysUnlocked();
     db[key] = value;
+    expiryMap.erase(key); // Redis SET removes any existing TTL.
 }
 
-string Database::get(string key)
-{
-    checkExpiredKeys();
-    std::shared_lock lock(mutex_);
-    auto it = db.find(key);
-    if (it != db.end())
-    {
-        if (std::holds_alternative<std::string>(it->second))
-            return std::get<std::string>(it->second);
-        return ""; // wrong type for GET
-    }
-
-    return "";
+bool Database::get(const std::string& key, std::string& out) {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+    const auto it = db.find(key);
+    if (it == db.end() || !std::holds_alternative<std::string>(it->second)) return false;
+    out = std::get<std::string>(it->second);
+    return true;
 }
 
-bool Database::exists(string key)
-{
-    checkExpiredKeys();
-    std::shared_lock lock(mutex_);
+bool Database::exists(const std::string& key) {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
     return db.find(key) != db.end();
 }
 
-bool Database::deleteKey(string key)
-{
+bool Database::deleteKey(const std::string& key) {
     std::unique_lock lock(mutex_);
     expireKeysUnlocked();
-    auto it = db.find(key);
-
-    if (it == db.end())
-        return false;
-
-    db.erase(it);
+    const bool deleted = db.erase(key) != 0;
     expiryMap.erase(key);
-    return true;
+    return deleted;
 }
 
-int Database::lpush(string key, string value)
-{
-    std::unique_lock lock(mutex_);
-    expireKeysUnlocked();
-
-    auto it = db.find(key);
-    if (it == db.end())
-    {
-        db[key] = std::vector<std::string>{value};
-        return 1;
-    }
-
-    if (!std::holds_alternative<std::vector<std::string>>(it->second))
-    {
-        return -1; // wrong type
-    }
-
-    auto &vec = std::get<std::vector<std::string>>(it->second);
-    vec.insert(vec.begin(), value);
-    return (int)vec.size();
-}
-
-int Database::rpop(string key, string &out)
-{
-    std::unique_lock lock(mutex_);
-    expireKeysUnlocked();
-
-    auto it = db.find(key);
-    if (it == db.end())
-        return 0; // missing
-
-    if (!std::holds_alternative<std::vector<std::string>>(it->second))
-        return -1; // wrong type
-
-    auto &vec = std::get<std::vector<std::string>>(it->second);
-    if (vec.empty())
-        return 0;
-
-    out = vec.back();
-    vec.pop_back();
-    if (vec.empty())
-        db.erase(it);
-    return 1;
-}
-
-void Database::clearDatabase()
-{
+void Database::clearDatabase() {
     std::unique_lock lock(mutex_);
     db.clear();
     expiryMap.clear();
-    expiryQueue = priority_queue<ExpiryNode, vector<ExpiryNode>, Compare>();
+    expiryQueue = {};
 }
 
-vector<string> Database::keys()
-{
-    checkExpiredKeys();
-    std::shared_lock lock(mutex_);
-    vector<string> result;
-
-    for (auto &entry : db)
-    {
-        result.push_back(entry.first);
-    }
-
+std::vector<std::string> Database::keys() {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+    std::vector<std::string> result;
+    result.reserve(db.size());
+    for (const auto& entry : db) result.push_back(entry.first);
     return result;
 }
-void Database::loadFromFile()
-{
-    ifstream inputFile("database.txt");
 
-    string key, value;
-
-    while (inputFile >> key >> value)
-    {
-        setVal(key, value);
+bool Database::expire(const std::string& key, int seconds) {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+    if (db.find(key) == db.end()) return false;
+    if (seconds <= 0) {
+        db.erase(key);
+        expiryMap.erase(key);
+        return true;
     }
-
-    inputFile.close();
-}
-
-bool Database::expire(string key, int seconds)
-{
-    checkExpiredKeys();
-    if (!exists(key))
-    {
-        return false;
-    }
-    time_t expireTime = time(nullptr) + seconds;
-    expiryMap[key] = expireTime;
-    expiryQueue.push({expireTime, key});
+    const std::time_t expiration = std::time(nullptr) + seconds;
+    expiryMap[key] = expiration;
+    expiryQueue.push({expiration, key});
     return true;
 }
 
-void Database::checkExpiredKeys()
-{
-    time_t currentTime = time(nullptr);
-    while (!expiryQueue.empty())
-    {
-        ExpiryNode topNode = expiryQueue.top();
-        if (topNode.expiretime > currentTime)
-        {
-            break;
-        }
-        expiryQueue.pop();
-        if (expiryMap[topNode.key] != topNode.expiretime)
-        {
-            continue;
-        }
-        db.erase(topNode.key);
-        expiryMap.erase(topNode.key);
-    }
+void Database::checkExpiredKeys() {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
 }
 
-bool Database::persist(string key){
-    checkExpiredKeys();
-    if(!exists(key)){
-        return false;
-    }
-    if(expiryMap.find(key) == expiryMap.end()){
-        return false;
-    }
-    expiryMap.erase(key);
-    return true;
+bool Database::persist(const std::string& key) {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+    if (db.find(key) == db.end()) return false;
+    return expiryMap.erase(key) != 0;
 }
 
-int Database::ttl(string key)
-{
-    checkExpiredKeys();
-
-    if (!exists(key))
-    {
-        return -2;
-    }
-
-    if (expiryMap.find(key) == expiryMap.end())
-    {
-        return -1;
-    }
-
-    time_t currentTime = time(nullptr);
-
-    return expiryMap[key] - currentTime;
+int Database::ttl(const std::string& key) {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+    if (db.find(key) == db.end()) return -2;
+    const auto expiry = expiryMap.find(key);
+    if (expiry == expiryMap.end()) return -1;
+    return static_cast<int>(expiry->second - std::time(nullptr));
 }
 
-void Database::saveToFile()
-{
-    ofstream outputFile("database.txt");
-
-    if (!outputFile)
-    {
-        cout << "Failed to create file!" << endl;
-        return;
+int Database::lpush(const std::string& key, const std::string& value) {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+    auto it = db.find(key);
+    if (it == db.end()) {
+        db[key] = std::vector<std::string>{value};
+        return 1;
     }
+    if (!std::holds_alternative<std::vector<std::string>>(it->second)) return -1;
+    auto& values = std::get<std::vector<std::string>>(it->second);
+    values.insert(values.begin(), value);
+    return static_cast<int>(values.size());
+}
 
-    for (auto &entry : db)  
-    {
-        outputFile << entry.first << " ";
-        if (std::holds_alternative<std::string>(entry.second))
-        {
-            outputFile << std::get<std::string>(entry.second) << endl;
-        }
-        else
-        {
-            // Skip saving list-typed values to simple file storage for now
-            outputFile << "" << endl;
-        }
-    }
-
-    outputFile.close();
+int Database::rpop(const std::string& key, std::string& out) {
+    std::unique_lock lock(mutex_);
+    expireKeysUnlocked();
+    const auto it = db.find(key);
+    if (it == db.end()) return 0;
+    if (!std::holds_alternative<std::vector<std::string>>(it->second)) return -1;
+    auto& values = std::get<std::vector<std::string>>(it->second);
+    out = values.back();
+    values.pop_back();
+    if (values.empty()) db.erase(it);
+    return 1;
 }

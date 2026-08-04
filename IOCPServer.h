@@ -30,7 +30,8 @@ private:
     bool postSend(struct PerIoContext *context, const std::string &response);
     void onAccept(struct PerIoContext *context, Database &redis);
     void onRecv(struct PerIoContext *context, DWORD bytesTransferred, Database &redis);
-    void onSend(struct PerIoContext *context);
+    void onSend(struct PerIoContext *context, DWORD bytesTransferred, Database &redis);
+    void processBufferedCommand(struct PerIoContext *context, Database &redis);
     void disconnectClient(struct PerIoContext *context);
     void workerThread(Database &redis);
 

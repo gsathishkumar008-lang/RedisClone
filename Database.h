@@ -1,54 +1,55 @@
 #ifndef DATABASE_H
 #define DATABASE_H
 
-#include <bits/stdc++.h>
+#include <ctime>
+#include <queue>
+#include <mutex>
 #include <shared_mutex>
+#include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
-using namespace std;
 
-struct ExpiryNode{
-    time_t expiretime;
-    string key;
+struct ExpiryNode {
+    std::time_t expiretime;
+    std::string key;
 };
-struct Compare{
-    bool operator()(ExpiryNode a, ExpiryNode b){
-        return a.expiretime>b.expiretime;
+
+struct Compare {
+    bool operator()(const ExpiryNode& a, const ExpiryNode& b) const {
+        return a.expiretime > b.expiretime;
     }
 };
 
 using DatabaseValue = std::variant<std::string, std::vector<std::string>>;
 
-class Database
-{
+class Database {
 private:
-    unordered_map<string, DatabaseValue> db;
-    unordered_map<string,time_t> expiryMap;
-    priority_queue<ExpiryNode, vector<ExpiryNode>, Compare> expiryQueue;
+    std::unordered_map<std::string, DatabaseValue> db;
+    std::unordered_map<std::string, std::time_t> expiryMap;
+    std::priority_queue<ExpiryNode, std::vector<ExpiryNode>, Compare> expiryQueue;
     mutable std::shared_mutex mutex_;
 
     void expireKeysUnlocked();
 
 public:
-    Database();
-    ~Database();
+    Database() = default;
+    ~Database() = default;
 
-    void setVal(string key, string value);
-    string get(string key);
-    bool exists(string key);
-    bool deleteKey(string key);
+    void setVal(const std::string& key, const std::string& value);
+    bool get(const std::string& key, std::string& out);
+    bool exists(const std::string& key);
+    bool deleteKey(const std::string& key);
     void clearDatabase();
-    vector<string> keys();
-    
-    bool expire(string key,int seconds);
-    void checkExpiredKeys();
-    bool persist(string key);
-    int ttl(string key);
+    std::vector<std::string> keys();
 
-    void loadFromFile();
-    void saveToFile();
-    // List operations
-    int lpush(string key, string value); // returns new length or -1 on wrong type
-    int rpop(string key, string &out);   // returns 1 on success (out set), 0 if missing, -1 on wrong type
+    bool expire(const std::string& key, int seconds);
+    void checkExpiredKeys();
+    bool persist(const std::string& key);
+    int ttl(const std::string& key);
+
+    int lpush(const std::string& key, const std::string& value);
+    int rpop(const std::string& key, std::string& out);
 };
+
 #endif

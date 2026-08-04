@@ -105,16 +105,24 @@ int main()
             break;
         
         string resp = convertToRESP(message);   
-        send(clientSocket,
-             resp.c_str(),
-             resp.length(),
-             0);
+        size_t sent = 0;
+        while (sent < resp.size())
+        {
+            int result = send(clientSocket, resp.data() + sent, static_cast<int>(resp.size() - sent), 0);
+            if (result == SOCKET_ERROR || result == 0)
+            {
+                cout << "Send failed\n";
+                break;
+            }
+            sent += static_cast<size_t>(result);
+        }
+        if (sent != resp.size()) break;
 
-        char buffer[1024];
+        char buffer[1025];
 
         int bytesReceived = recv(clientSocket,
                                  buffer,
-                                 sizeof(buffer),
+                                 sizeof(buffer) - 1,
                                  0);
 
         if (bytesReceived > 0)

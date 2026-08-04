@@ -1,6 +1,4 @@
 #include <iostream>
-#include <thread>
-#include <chrono>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include "Database.h"
@@ -47,15 +45,6 @@ int main()
     {
         cout << "Warning: could not open appendonly.aof for writing\n";
     }
-
-    std::thread expirationThread([&redis]() {
-        while (true)
-        {
-            redis.checkExpiredKeys();
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-    });
-    expirationThread.detach();
 
     server.run(redis);
     server.shutdown();
