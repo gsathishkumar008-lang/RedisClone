@@ -1,3 +1,0 @@
-SET afterstress value
-GET afterstress
-EXIT

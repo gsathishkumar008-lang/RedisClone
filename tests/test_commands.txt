@@ -1,0 +1,10 @@
+LPUSH mylist hello
+LPUSH mylist world
+RPOP mylist
+RPOP mylist
+RPOP mylist
+SET key1 value1
+GET key1
+DEL key1
+GET key1
+EXIT

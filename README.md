@@ -11,7 +11,7 @@ A learning project that implements a small Redis-inspired, in-memory key-value s
 - Per-connection request buffering for fragmented and pipelined TCP data
 - String commands: `PING`, `SET`, `GET`, `DEL`, `EXISTS`, `KEYS`
 - Expiration commands: `EXPIRE`, `TTL`, `PERSIST`
-- List commands: `LPUSH`, `RPOP`
+- List commands: `LPUSH`, `LRANGE`, `RPOP`
 - Append-only-file (AOF) persistence and replay on startup
 - Thread-safe in-memory database access
 - Interactive command-line client
@@ -30,6 +30,7 @@ A learning project that implements a small Redis-inspired, in-memory key-value s
 | `TTL` | `TTL name` | Returns remaining expiry time, `-1` for no expiry, and `-2` if missing. |
 | `PERSIST` | `PERSIST name` | Removes a key's expiry. |
 | `LPUSH` | `LPUSH tasks study` | Pushes a value to the left of a list. |
+| `LRANGE` | `LRANGE tasks 0 -1` | Returns a slice of a list without mutating it. |
 | `RPOP` | `RPOP tasks` | Pops a value from the right of a list. |
 | `CLEAR` | `CLEAR` | Clears the database. This is a project-specific command, not standard Redis. |
 
@@ -50,13 +51,13 @@ cd C:\Users\sathi\Documents\CODES\RedisClone
 Build the server:
 
 ```powershell
-C:\msys64\ucrt64\bin\g++.exe -std=c++17 -Wall -Wextra server.cpp Database.cpp CommandHandler.cpp AOF.cpp IOCPServer.cpp -o server.exe -lws2_32
+C:\msys64\ucrt64\bin\g++.exe -std=c++17 -Wall -Wextra src/server.cpp src/Database.cpp src/CommandHandler.cpp src/AOF.cpp src/IOCPServer.cpp -o server.exe -lws2_32
 ```
 
 Build the interactive client:
 
 ```powershell
-C:\msys64\ucrt64\bin\g++.exe -std=c++17 client.cpp -o client.exe -lws2_32
+C:\msys64\ucrt64\bin\g++.exe -std=c++17 src/client.cpp -o client.exe -lws2_32
 ```
 
 Alternatively, in VS Code press `Ctrl` + `Shift` + `B` and select **Build Redis Server**.
@@ -95,20 +96,20 @@ redis> TTL name
 :9
 ```
 
-The server listens on port `6379` by default. If startup reports a bind error, another process is already using port `6379`; stop that process or change the port in both `server.cpp` and `client.cpp`.
+The server listens on port `6379` by default. If startup reports a bind error, another process is already using port `6379`; stop that process or change the port in both `src/server.cpp` and `src/client.cpp`.
 
 ## Persistence
 
-Successful mutating commands are written to `appendonly.aof`. On startup, the server replays that file to rebuild its in-memory state.
+Successful mutating commands are written to `data/appendonly.aof`. On startup, the server replays that file to rebuild its in-memory state.
 
-To start with an empty database, stop the server and delete `appendonly.aof`.
+To start with an empty database, stop the server and delete `data/appendonly.aof`.
 
 ## Stress test
 
-The repository includes `stress_test.cpp`, which creates multiple concurrent clients. Build and run it while the server is running:
+The repository includes [tests/stress_test.cpp](tests/stress_test.cpp), which creates multiple concurrent clients. Build and run it while the server is running:
 
 ```powershell
-C:\msys64\ucrt64\bin\g++.exe -std=c++17 stress_test.cpp -o stress_test.exe -lws2_32
+C:\msys64\ucrt64\bin\g++.exe -std=c++17 tests/stress_test.cpp -o stress_test.exe -lws2_32
 .\stress_test.exe
 ```
 

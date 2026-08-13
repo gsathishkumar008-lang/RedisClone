@@ -1,3 +1,5 @@
 .vscode/
-*exe
+*.exe
+results/*.txt
+data/*.aof
 
